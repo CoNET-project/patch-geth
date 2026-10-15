@@ -76,6 +76,20 @@ func TestApplyInsertsOnlyCancun(t *testing.T) {
 	}
 }
 
+func TestApplyPointerForkSwitch(t *testing.T) {
+	src := strings.ReplaceAll(fixture, "return PrecompiledContracts", "return &PrecompiledContracts")
+	out, status, err := applyContractsSource(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != statusPatched {
+		t.Fatalf("status %s", status)
+	}
+	if !strings.Contains(out, "return &PrecompiledContractsCancun") {
+		t.Fatal("pointer return was rewritten")
+	}
+}
+
 func TestApplyRefusesForeignBinding(t *testing.T) {
 	src := strings.Replace(fixture,
 		"common.BytesToAddress([]byte{0xa}): &kzgPointEvaluation{},\n}",

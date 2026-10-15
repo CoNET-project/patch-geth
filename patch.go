@@ -101,15 +101,24 @@ func verifyPatched(src string) error {
 			return fmt.Errorf("Cancun map is missing 0x%x %s after patch", want.addr, want.typ)
 		}
 	}
-	if !strings.Contains(src, "case rules.IsCancun:\n\t\treturn PrecompiledContractsCancun") &&
-		!strings.Contains(src, "case rules.IsCancun:\r\n\t\treturn PrecompiledContractsCancun") {
+	if !forkCaseReturns(src, "IsCancun", "PrecompiledContractsCancun") {
 		return fmt.Errorf("Cancun fork switch no longer returns PrecompiledContractsCancun")
 	}
-	if !strings.Contains(src, "case rules.IsPrague:\n\t\treturn PrecompiledContractsPrague") &&
-		!strings.Contains(src, "case rules.IsPrague:\r\n\t\treturn PrecompiledContractsPrague") {
+	if !forkCaseReturns(src, "IsPrague", "PrecompiledContractsPrague") {
 		return fmt.Errorf("Prague fork switch no longer returns PrecompiledContractsPrague")
 	}
 	return nil
+}
+
+var forkReturnRE = regexp.MustCompile(`(?m)^[ \t]*case rules\.(Is[A-Za-z0-9]+):[ \t]*\r?\n[ \t]*return &?([A-Za-z0-9_]+)\s*$`)
+
+func forkCaseReturns(src, rule, name string) bool {
+	for _, m := range forkReturnRE.FindAllStringSubmatch(src, -1) {
+		if m[1] == rule && m[2] == name {
+			return true
+		}
+	}
+	return false
 }
 
 func forkSwitchUntouched(before, after string) error {
