@@ -1,16 +1,16 @@
 # patch-geth
 
-给 CoNET 使用的 Geth 源码打上 EIP-2537。Cancun 规则下的预编译表会多出 `0x0b`–`0x11`，Prague 不打开。
+Patches Geth source so CoNET gets EIP-2537. The Cancun precompile table gains `0x0b`–`0x11`. Prague stays off.
 
-仓库：<https://github.com/CoNET-project/patch-geth>
+Repository: <https://github.com/CoNET-project/patch-geth>
 
-## 它做什么
+## What it does
 
-上游 Geth 已经实现了 BLS12-381，但只挂在 Prague 的预编译表上。CoNET 仍使用 Cancun。对 `0x0b` 的空调用因此是空账户的空成功，不能当作配对证明。
+Upstream Geth already implements BLS12-381, and registers it only on the Prague precompile table. CoNET still runs under Cancun rules. An empty call to `0x0b` is therefore an empty-account success, and that result is not a pairing proof.
 
-本程序只改 `core/vm/contracts.go` 里的 `PrecompiledContractsCancun`：
+This program edits only `PrecompiledContractsCancun` in `core/vm/contracts.go`:
 
-| 地址 | 实现（沿用该版本 Geth 里已有的类型） |
+| Address | Implementation (the type already in that Geth version) |
 |---|---|
 | `0x0b` | `bls12381G1Add` |
 | `0x0c` | `bls12381G1MultiExp` |
@@ -20,22 +20,22 @@
 | `0x10` | `bls12381MapG1` |
 | `0x11` | `bls12381MapG2` |
 
-`init()` 会按这张表重建 `PrecompiledAddressesCancun`。`activePrecompiledContracts` 保持原样：Cancun 仍返回 Cancun 表，Prague 仍返回 Prague 表。程序不排 Prague，也不改 7702、6110、7002、7251。
+`init()` rebuilds `PrecompiledAddressesCancun` from that table. `activePrecompiledContracts` stays as upstream wrote it: Cancun still returns the Cancun table, and Prague still returns the Prague table. The program does not schedule Prague, and it does not change EIP-7702, EIP-6110, EIP-7002, or EIP-7251.
 
-Geth 升级后，对**新的源码树**再执行一次 `apply`。表结构还在、类型名还在时，程序自己把这七项补进 Cancun 表。不必为每个版本手改 unified diff。打不上就失败退出，继续用上一份已经验收的二进制。
+After a Geth upgrade, run `apply` again on the **new** source tree. While the table and the type names are still there, the program inserts these seven entries into the Cancun table. A hand-written unified diff is not required for each release. If the patch cannot be applied safely, the program exits with a failure and the last accepted binary stays in use.
 
-## 它不做什么
+## What it does not do
 
-预编译在 Geth 进程内部查表。官方二进制没有外部补丁入口。下面这些不能代替本程序：
+Precompiles are looked up inside the Geth process. The upstream binary has no external patch hook. None of the following replaces this program:
 
-- 在节点旁边再跑一个进程，或在 RPC 前面做代理
-- 对静态链接的 Geth 使用 `LD_PRELOAD`
-- 升级后再改 ELF、datadir 或 genesis
-- 设置 `pragueTime` 来“顺便”打开 BLS
+- a sidecar process, or an RPC proxy in front of the node
+- `LD_PRELOAD` against a statically linked Geth
+- editing the ELF, datadir, or genesis after an upgrade
+- setting `pragueTime` in order to turn BLS on
 
-节点上安装的必须是用打过补丁的源码重新编译的 Geth。换成上游二进制后，`0x0b` 会回到空成功。
+The execution client on a node must be a Geth binary rebuilt from the patched tree. Replacing it with an upstream binary makes `0x0b` an empty success again.
 
-## 用法
+## Usage
 
 ```bash
 git clone --depth 1 --branch v1.17.5 https://github.com/ethereum/go-ethereum
@@ -45,37 +45,37 @@ go run . apply --src ../go-ethereum
 go run . check --src ../go-ethereum
 ```
 
-`apply` 可重复执行。已经打过时打印 `already`，不会再改文件。`check` 在七个地址都以原类型出现在 Cancun 表之前失败。
+`apply` is safe to run again. When the tree is already patched it prints `already` and does not rewrite the file. `check` fails until all seven addresses are present in the Cancun table with those types.
 
-也可以直接指向文件：
+Point at the file directly when the checkout layout differs:
 
 ```bash
 go run . apply --file ../go-ethereum/core/vm/contracts.go
 ```
 
-然后在该 Geth 树里按原有方式编译。CoNET 执行层使用 Linux amd64 静态二进制时：
+Build that Geth tree with its normal commands. For a static Linux amd64 execution client:
 
 ```bash
 cd ../go-ethereum
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o geth ./cmd/geth
 ```
 
-编译完成后，用一份会调用 `0x0b` 的探针确认空调用不再返回空成功。空返回仍然不能当成配对成功。
+After the build, probe an empty call to `0x0b` and confirm it is no longer an empty success. An empty return is still not a successful pairing.
 
-## 升级上游时
+## Upgrading upstream Geth
 
-1. 取出新的 Geth tag，使用干净的源码树。
-2. 运行 `patch-geth apply --src <那棵树>`。
-3. 程序报错（找不到 Cancun 表、找不到某个 `bls12381*` 类型、或某个地址已经绑到别的实现）时停止。不要手改去凑选择器，也不要改用上游未打补丁的二进制。
-4. `check` 通过后再编译，并在测试链上确认 `0x0b` 的行为。
-5. 各执行层安装这一份二进制。不要写 `pragueTime`、`osakaTime` 或其它 Prague 时间戳。
+1. Check out the new Geth tag in a clean source tree.
+2. Run `patch-geth apply --src <that tree>`.
+3. Stop if the program reports an error: the Cancun table is missing, a `bls12381*` type is missing, or an address is already bound to a different implementation. Do not hand-edit a selector to force a match, and do not switch to an unpatched upstream binary.
+4. Compile only after `check` passes, then confirm `0x0b` on a test chain.
+5. Install that binary on each execution client. Do not set `pragueTime`, `osakaTime`, or any other Prague timestamp.
 
-替换正在出块的执行层二进制需要重启 Geth。重启须另行得到明确授权；本程序不连接节点，也不重启进程。
+Replacing the execution binary on a node that is producing blocks requires a Geth restart. That restart needs its own explicit authorization. This program does not connect to a node and does not restart a process.
 
-## 失败时的退出码
+## Exit codes
 
-| 情况 | 退出码 |
+| Condition | Exit code |
 |---|---|
-| 缺少 `--src` 或 `--file`，或命令名不对 | 2 |
-| 源码无法安全打补丁，或 `check` 发现尚未打上 | 1 |
-| `apply` 写出补丁，或确认已经打过；`check` 通过 | 0 |
+| Missing `--src` or `--file`, or an unknown command | 2 |
+| The source cannot be patched safely, or `check` finds it is not patched | 1 |
+| `apply` wrote the patch or confirmed it was already present; `check` passed | 0 |
