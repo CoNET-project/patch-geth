@@ -4,6 +4,18 @@ Patches Geth source so CoNET gets EIP-2537. The Cancun precompile table gains `0
 
 Repository: <https://github.com/CoNET-project/patch-geth>
 
+## Binary
+
+Release [`geth-v1.17.8`](https://github.com/CoNET-project/patch-geth/releases/tag/geth-v1.17.8) publishes the static Linux amd64 executable built from `ethereum/go-ethereum` `v1.17.8` (`a579077`) after `patch-geth apply`.
+
+| Item | Value |
+|---|---|
+| Asset | `geth-v1.17.8-cancun-bls-linux-amd64` |
+| Version string | `Geth/v1.17.8-stable-a5790770/linux-amd64/go1.25.4` |
+| SHA-256 | `7d15b7c92e38ba24f498da1ee8ad4fd8aef473efae28d652a000ec0a70e15501` |
+
+The file is a release asset. It is not stored in the git tree. Prague is not scheduled in this build. Replacing a live execution binary still requires a separate restart authorization.
+
 ## What it does
 
 Upstream Geth already implements BLS12-381, and registers it only on the Prague precompile table. CoNET still runs under Cancun rules. An empty call to `0x0b` is therefore an empty-account success, and that result is not a pairing proof.
