@@ -1,0 +1,24 @@
+diff --git a/node/node.go b/node/node.go
+--- a/node/node.go
++++ b/node/node.go
+@@ -454,20 +454,6 @@
+ 		}
+ 		servers = append(servers, server)
+ 
+-		// Enable auth via WS
+-		server = n.wsServerForPort(port, true)
+-		if err := server.setListenAddr(n.config.AuthAddr, port); err != nil {
+-			return err
+-		}
+-		if err := server.enableWS(allAPIs, wsConfig{
+-			Modules:           DefaultAuthModules,
+-			Origins:           DefaultAuthOrigins,
+-			prefix:            DefaultAuthPrefix,
+-			rpcEndpointConfig: sharedConfig,
+-		}); err != nil {
+-			return err
+-		}
+-		servers = append(servers, server)
+ 		return nil
+ 	}
+ 

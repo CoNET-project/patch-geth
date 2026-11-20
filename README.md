@@ -16,6 +16,42 @@ Release [`geth-v1.17.8`](https://github.com/CoNET-project/patch-geth/releases/ta
 
 The file is a release asset. It is not stored in the git tree. Prague is not scheduled in this build. Replacing a live execution binary still requires a separate restart authorization.
 
+## CoNET v1.17.8 Engine HTTP-only build
+
+This opt-in patch is pinned to upstream Geth v1.17.8
+(`a579077007b98217c3e253a66e4b452ca0c32b96`). It removes only the
+authenticated Engine WebSocket registration from `node/node.go`. The existing
+JWT-authenticated Engine HTTP registration, its limits and module list stay
+in place. Build it together with the standard CoNET Cancun BLS patch.
+
+With Go 1.25.4 on Linux amd64, place clean checkouts of the reviewed
+`patch-geth` commit and upstream Geth side by side, then run:
+
+```bash
+set -euo pipefail
+test "$(git -C go-ethereum rev-parse HEAD)" = a579077007b98217c3e253a66e4b452ca0c32b96
+test -z "$(git -C go-ethereum status --porcelain)"
+(
+  cd patch-geth
+  go run . apply --src ../go-ethereum
+  go run . check --src ../go-ethereum
+)
+(
+  cd go-ethereum
+  git apply --check ../patch-geth/patches/geth-v1.17.8-engine-http-only.patch
+  git apply ../patch-geth/patches/geth-v1.17.8-engine-http-only.patch
+  git diff --check
+  CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=readonly -trimpath \
+    -ldflags="-s -w -buildid=" -o ../geth-engine-http-only ./cmd/geth
+)
+sha256sum geth-engine-http-only
+```
+
+Start the candidate without `--ws`. Before deployment, verify ordinary
+HTTP RPC, JWT-authenticated Engine HTTP, and rejection of Upgrade on both
+endpoints, including an Engine probe with a valid test JWT. Verify execution
+and consensus catch-up on a CoNET snapshot with Prysm using Engine HTTP.
+
 ## What it does
 
 Upstream Geth already implements BLS12-381, and registers it only on the Prague precompile table. CoNET still runs under Cancun rules. An empty call to `0x0b` is therefore an empty-account success, and that result is not a pairing proof.
